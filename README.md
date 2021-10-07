@@ -11,6 +11,7 @@ Note: This is an exact copy of LEAF-ToolBox-SL2P for image by image products as 
 ## Environment configuration:
 
 You will need an Anaconda environment configured as: \
+``
 \>\>Anaconda\
 \>\>conda create --name leaftoolbox \
 \>\>conda activate leaftoolbox \
@@ -21,9 +22,10 @@ You will need an Anaconda environment configured as: \
 \>\>conda install -c conda-forge pandas -y \
 \>\>conda install -c conda-forge numpy -y \
 \>\>conda install -c conda-forge scikit-learn -y \
-\>\>conda install -c conda-forge scipy -y \
+\>\>conda install -c conda-forge scipy -y
 
 Then as follows to run the script: \
 \>\>Anaconda \
 \>\>conda activate leaftoolbox \
-\>\>jupyter lab \
+\>\>jupyter lab
+``
