@@ -11,7 +11,7 @@ Note: This is an exact copy of LEAF-ToolBox-SL2P for image by image products as 
 ## Environment configuration:
 
 You will need an Anaconda environment configured as: \
-``
+
 \>\>Anaconda\
 \>\>conda create --name leaftoolbox \
 \>\>conda activate leaftoolbox \
@@ -28,4 +28,3 @@ Then as follows to run the script: \
 \>\>Anaconda \
 \>\>conda activate leaftoolbox \
 \>\>jupyter lab
-``
