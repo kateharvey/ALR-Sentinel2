@@ -1,0 +1,467 @@
+var inputImage = ee.Image('users/ccrs1fy2020/Test4');
+var inputImage_bands = ee.List(['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B9', 'B10', 'B11', 'B12', 'B13', 'LAI']);
+var input_VI_definition = ee.List(["GI      = b('B3')/b('B4')",
+                                  "RVI3    = b('B4')/b('B6')",
+                                  "SR3     = b('B5')/b('B4')",
+                                  "GM1     = b('B6')/b('B3')",
+                                  "GM2     = b('B6')/b('B5')",
+                                  "SR2     = b('B7')/b('B3')",
+                                  "PSSR    = b('B7')/b('B4')",
+                                  "SGI     = b('B8A')/b('B4')",
+                                  "MSI     = b('B11')/b('B7')",
+                                  "II      = b('B11')/b('B12')",
+                                  "GVI     = (b('B8A')/b('B3'))-1",
+                                  "PSRI    = (b('B4')-b('B3'))/b('B6')",
+                                  "NDVI3   = ((b('B8A')-b('B4'))/(b('B8A')))+b('B4')",
+                                  "SR5     = 1/b('B5')",
+                                  "SR6     = b('B4')/(b('B3')*b('B5'))",
+                                  "SR7     = b('B8A')/(b('B3')*b('B5'))",
+                                  "IPVI    = b('B7')/(b('B7')+b('B4'))",
+                                  "ARI     = (1/b('B3'))-(1/b('B5'))",
+                                  "ARI2    = b('B7')*((1/b('B3'))-(1/b('B5')))",
+                                  "NDVI    = (b('B8A')-b('B4'))/(b('B8A')+b('B4'))",
+                                  "GNDVI   = (b('B8A')-b('B3'))/(b('B8A')+b('B3'))",
+                                  "NDWI    = (b('B8A')-b('B11'))/(b('B8A')+b('B11'))",
+                                  "NDREVI  = (b('B8A')-b('B5'))/(b('B8A')+b('B5'))",
+                                  "NDGI    = (b('B3')-b('B4'))/(b('B3')+b('B4'))",
+                                  "NDI1    = (b('B7')-b('B5'))/(b('B7')-b('B4'))",
+                                  "NDI2    = (b('B8A')-b('B5'))/(b('B8A')-b('B4'))",
+                                  "RENDVI  = (b('B6')-b('B5'))/(b('B6')+b('B5'))",
+                                  "OSAVI   = (1.16*(b('B7')-b('B4')))/(b('B7')+b('B4')+0.61)",
+                                  "NMDI    = (b('B8A')-(b('B11')-b('B12')))/(b('B8A')+(b('B11')-b('B12')))",
+                                  "HI      = ((b('B3')-b('B5'))/(b('B3')+b('B5')))-0.5*b('B5')",
+                                  "GVSP    = (-0.283*b('B3') - 0.66*b('B4') + 0.577*b('B6') + 0.388*b('B8A'))/(0.433*b('B3') - 0.632*b('B4') + 0.586*b('B6') + 0.264*b('B8A'))",
+                                  "MCARI   = ((b('B5')-b('B4'))-0.2*(b('B5')-b('B3')))*(b('B5')/b('B4'))",
+                                  "TCARI   = 3*((b('B5')-b('B4'))-0.2*(b('B5')-b('B3'))*(b('B5')/b('B4')))",
+                                  "EVI     = 2.5*((b('B8A')-b('B4'))/(b('B8A')+6*b('B4')-7.5*b('B3')+1))",
+                                  "EVI2    = 2.5*((b('B8A')-b('B4'))/(b('B8A')+2.4*b('B4')+1))",
+                                  "RDVI    = (b('B8A')-b('B4'))/((b('B8A')+b('B4'))**0.5)",
+                                  "MSR     = ((b('B8A')/b('B4'))-1)/((b('B8A')/b('B4'))**0.5+1)",
+                                  "MSAVI   = 0.5*(2*b('B7')+1-((2*b('B7')+1)**2-8*(b('B7')-b('B4')))**0.5)",
+                                  "MSAVI2  = 0.5*(2*b('B8A')+1-((2*b('B8A')+1)**2-8*(b('B8A')-b('B4')))**0.5)",
+                                  "MCARI2  = (1.5*(2.5*(b('B7')-b('B4'))-1.3*(b('B7')-b('B3'))))/((((2*b('B7')+1)**2)-(6*b('B7')-5*(b('B4')**0.5))-0.5)**0.5)",
+                                  "MTVI2   = (1.5*(1.2*(b('B7')-b('B3'))-2.5*(b('B4')-b('B3'))))/(((2*b('B7')+1)**2-(6*b('B7')-5*b('B4'))-0.5)**0.5)",
+                                  "MSR2    = ((b('B7')/b('B4'))-1)/(((b('B7')/b('B4'))+1)**0.5)",
+                                  "NLI     = ((b('B8A')**2)-b('B4'))/((b('B8A')**2)+b('B4'))"]);
+
+
+
+
+var format_image = function(image, image_bands, response_band, VI_definition) {
+  image = ee.Image(image);
+  image_bands = ee.List(image_bands);
+  response_band = ee.String(response_band);
+  VI_definition = ee.List(VI_definition);
+  
+  // image_bands specifices a list of the names of the bands used in defining the expressions for VIs in VI_definition
+  image = image.rename(image_bands).toDouble();
+  
+  // Generate an imageCollection from a list of expressions defining a set of Vegetation Indices using the bands available in the image
+  var VIimageCollection = ee.ImageCollection(VI_definition.map(function(expr) {return image.expression(ee.String(expr))}));
+  var VIimage = VIimageCollection.toBands().regexpRename('[0-9]+_', '');
+  
+  // Reordering the bands in the image so the response band is the last band in the image
+  var feature_bands = image_bands.remove(response_band);
+  return image.select(feature_bands).addBands(VIimage).addBands(image.select(response_band));
+};
+inputImage = format_image(inputImage, inputImage_bands, "LAI", input_VI_definition);
+
+
+
+
+var get_num_pixels = function(image) {
+  // Retrieve the dimensions of the image from the metadata of the first band
+  var image_dimensions = ee.List(image.getInfo().bands[0].dimensions);
+  var image_height = image_dimensions.getNumber(0);
+  var image_width = image_dimensions.getNumber(1);
+  var image_pixels = image_height.multiply(image_width);
+  
+  return image_pixels;
+};
+var num_input_pixels = get_num_pixels(inputImage);
+
+
+
+
+var scale_image = function(image, response_band) {
+  image = ee.Image(image);
+  response_band = ee.String(response_band);
+  var image_pixels = ee.Number(get_num_pixels(image));
+  
+  // Setting up lists containing the input/feature bands in the image
+  var bandList = image.bandNames();
+  var featureList = bandList.remove(response_band);
+  var num_bands = bandList.length();
+  var num_features = featureList.length();
+
+  // We will be using the reduceRegion() function on images from Earth Engine, 
+  // which will process up to a specified number of pixels from the image to generate the outputs of the reducer
+  var max_pixels = image_pixels.min(10000000);
+  var best_effort = ee.Algorithms.If(image_pixels.gt(max_pixels), true, false);
+  
+  // Initial centering all of the input bands, added VIs, and response with the input image
+  var meanImage = image.subtract(
+                    image.reduceRegion(ee.Reducer.mean(), null, null, null, null, best_effort, max_pixels, 1)
+                    .toImage(bandList)
+                  );
+  // Separating the image into features (X) and response (y) for processing with LARs
+  var X = meanImage.select(featureList);
+  var y = meanImage.select(response_band);
+  
+  // Standardizing the input features
+  X = X.divide(
+        X.reduceRegion(ee.Reducer.stdDev(), null, null, null, null, best_effort, max_pixels, 1)
+        .toImage(featureList)
+      );
+  
+  return X.addBands(y);
+};
+var scaledImage = scale_image(inputImage, "LAI");
+
+
+
+
+var image2collection = function(image, num_samples) {
+  image = ee.Image(image);
+  num_samples = ee.Number(num_samples);
+  
+  var image_pixels = ee.Number(get_num_pixels(image));
+  var n = num_samples.min(image_pixels);
+  
+  // Extracting the image into arrays
+  var inputsCollection = image.sample(null, null, null, null, n, 0, true, 1, true);
+
+  return inputsCollection;
+};
+var inputsCollection = image2collection(scaledImage, 10000);
+// Export.table.toDrive({
+//   collection: inputsCollection,
+//   description: 'untrimmed_image_samples',
+//   fileFormat: 'CSV',
+//   selectors: ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B9', 'B10', 'B11', 'B12', 'B13',
+//               "GI", "RVI3", "SR3", "GM1", "GM2", "SR2", "PSSR", "SGI", "MSI", "II", "GVI", "PSRI", "NDVI3",
+//               "SR5", "SR6", "SR7", "IPVI", "ARI", "ARI2", "NDVI", "GNDVI", "NDWI", "NDREVI", "NDGI", "NDI1",
+//               "NDI2", "RENDVI", "OSAVI", "NMDI", "HI", "GVSP", "MCARI", "TCARI", "EVI", "EVI2","RDVI", "MSR",
+//               "MSAVI", "MSAVI2", "MCARI2", "MTVI2", "MSR2", "NLI", "LAI"]
+// });
+
+
+
+
+var EE_LARS = function(image, response_band, num_nonzero_coefficients, num_samples) {
+  image = ee.Image(image);
+  response_band = ee.String(response_band);
+  num_nonzero_coefficients = ee.Number(num_nonzero_coefficients);
+  num_samples = ee.Number(num_samples);
+  
+  var bandList = image.bandNames();
+  var featureList = bandList.remove(response_band);
+  
+  var image_pixels = get_num_pixels(image);
+  var inputCollection = image.sample(null, null, null, null, num_samples.min(image_pixels), 0, true, 1, true);
+  
+  var n = inputCollection.size();
+  var m = featureList.length();
+  
+  var inputs = ee.Dictionary.fromLists(bandList, bandList.map(function(feature) {return inputCollection.aggregate_array(feature)}));
+  
+  // Re-centering the features and response as reduceRegion() is not as precise as centering with arrays 
+  var input_means = ee.Dictionary.fromLists(bandList, bandList.map(function(feature) {return inputCollection.aggregate_mean(feature)}));
+  inputs = inputs.map(function(key, value) {
+    var key_mean = input_means.getNumber(key);
+    return ee.List(value).map(function(sample) {
+      return ee.Number(sample).subtract(key_mean);
+    });
+  });
+  var y = inputs.toArray([response_band]).reshape([-1,1]);
+  
+  // Re-normalizing the input features as reduceRegion() is not as precise as normalizing with arrays
+  inputs = inputs.select(featureList);
+  var input_norms = inputs.map(function(key, value) {
+    return ee.Number(ee.List(value).map(function(sample) {
+      return ee.Number(sample).pow(2);
+    }).reduce(ee.Reducer.sum())).pow(0.5);
+  });
+  inputs = inputs.map(function(key, value) {
+    var key_norm = input_norms.getNumber(key);
+    return ee.List(value).map(function(sample) {
+      return ee.Number(sample).divide(key_norm);
+    });
+  });
+  var X = inputs.toArray(featureList).transpose();
+  
+  
+  // Find the first most correlated variable to pass into the main loop
+  var initial_prediction = ee.Array(ee.List.repeat([0], n));
+    var c = X.transpose().matrixMultiply(y.subtract(initial_prediction));
+    var c_abs = c.abs();
+    var C_maxLoc = c_abs.project([0]).argmax();
+    var add_feature = C_maxLoc.getNumber(0);
+  var A = ee.List([add_feature]);
+  
+  var initial_inputs = ee.Dictionary({'prediction': initial_prediction, 'A': A});
+  
+  // Main loop
+  var LARs_regression = function(iteration, inputs) {
+    inputs = ee.Dictionary(inputs);
+    
+    var A = ee.List(inputs.get('A'));
+    var A_list = ee.Array(ee.List.sequence(0, m.subtract(1))
+                          .map(function(index) {return A.contains(index)})
+                          .replaceAll(false, 0).replaceAll(true,1))
+                          .reshape([-1,1]);
+  
+    var prediction = inputs.getArray('prediction');
+    var c = X.transpose().matrixMultiply(y.subtract(prediction));
+    var c_abs = c.abs();
+    var C_max = c_abs.get(c_abs.argmax());
+    
+    var s_A = c.divide(c_abs).mask(A_list);
+    var X_A = X.mask(A_list.transpose());
+    var G_Ai = X_A.transpose().matrixMultiply(X_A).matrixInverse();
+    var G1 = G_Ai.matrixMultiply(s_A);
+    var A_A = s_A.project([0]).dotProduct(G1.project([0])).pow(-0.5);
+    var w_A = G1.multiply(A_A);
+    var u_A = X_A.matrixMultiply(w_A);
+    var a = X.transpose().matrixMultiply(u_A);
+
+    a = a.project([0]);
+    c = c.project([0]);
+    var compute_gammaArray = function(index_j) {
+      var minus_j = C_max.subtract(c.get([index_j])).divide(A_A.subtract(a.get([index_j])));
+      var plus_j = C_max.add(c.get([index_j])).divide(A_A.add(a.get([index_j])));
+        
+      return ee.List([minus_j, plus_j]).filter(ee.Filter.gte('item', 0)).reduce(ee.Reducer.min());
+    };
+    var A_c = ee.List.sequence(0, m.subtract(1)).removeAll(A);
+    var gammaArray = A_c.map(compute_gammaArray);
+    var gamma = gammaArray.reduce(ee.Reducer.min());
+    var min_location = gammaArray.indexOf(gamma);
+    var add_feature = A_c.getNumber(min_location);
+    A = A.add(add_feature);
+    
+    prediction = prediction.add(u_A.multiply(gamma));
+    
+    return ee.Dictionary({'prediction': prediction, 'A': A});
+  };
+  
+  var LARs_final_iteration = function(iteration, inputs) {
+    inputs = ee.Dictionary(inputs);
+    var A = ee.List(inputs.get('A'));
+
+    var prediction = inputs.getArray('prediction');
+    var c = X.transpose().matrixMultiply(y.subtract(prediction));
+    var c_abs = c.abs();
+    var C_max = c_abs.get(c_abs.argmax());
+
+    var s_A = c.divide(c_abs);
+    var G_Ai = X.transpose().matrixMultiply(X).matrixInverse();
+    var G1 = G_Ai.matrixMultiply(s_A);
+    var A_A = s_A.project([0]).dotProduct(G1.project([0])).pow(-0.5);
+    var w_A = G1.multiply(A_A);
+    var u_A = X.matrixMultiply(w_A);
+  
+    var gamma = C_max.divide(A_A);
+    prediction = prediction.add(u_A.multiply(gamma));
+    
+    return ee.Dictionary({'prediction': prediction, 'A': A});
+  };
+  
+  var iterations = ee.List.sequence(1, m.subtract(1).min(num_nonzero_coefficients));
+  var penultimate_outputs = iterations.iterate(LARs_regression, initial_inputs);
+  var final_outputs = ee.Dictionary(ee.Algorithms.If( num_nonzero_coefficients.gte(m), 
+                                                      LARs_final_iteration(m, penultimate_outputs),
+                                                      penultimate_outputs));
+  
+  var final_prediction = final_outputs.getArray('prediction');
+  A = ee.List(final_outputs.get('A'));
+  var feature_path = A.slice(0, num_nonzero_coefficients).map(function(index) {return featureList.getString(index)});
+
+  var coefficients = X.matrixSolve(final_prediction);
+  var set_zero = function(num) {
+    num = ee.Number(num);
+    return ee.Algorithms.If(num.abs().lt(0.001), 0, num);
+  };
+  coefficients = coefficients.project([0]).toList().map(set_zero);
+  // print('Coefficients', ee.Dictionary.fromLists(featureList, coefficients));
+  
+  return feature_path;
+};
+var select_features = ee.List(EE_LARS(scaledImage, "LAI", 5, 10000)).sort();
+print(select_features)
+
+
+
+var trim_data = function(image, selected_features, response_band, num_samples, num_partitions) {
+  image = ee.Image(image);
+  selected_features = ee.List(selected_features);
+  response_band = ee.String(response_band);
+  num_samples = ee.Number(num_samples);
+  num_partitions = ee.Number(num_partitions);
+  
+  var percentiles = ee.List.sequence(0, 100, ee.Number(100).divide(num_partitions));
+  var percentile_names = percentiles.map(function(num) {return ee.Number(num).round().toInt().format("p%s")});
+  
+  var image_pixels = ee.Number(get_num_pixels(image));
+  var inputsCollection = image.select(selected_features.add(response_band)).sample(null, null, null, null, num_samples.min(image_pixels), 0, true, 1, true);
+  
+  var response_percentiles = inputsCollection.reduceColumns(ee.Reducer.percentile(percentiles, percentile_names, null, null, inputsCollection.size()), [response_band]);
+  var response_partitions = response_percentiles.values(percentile_names.remove("100.0")).zip(response_percentiles.values(percentile_names.remove("0.0")));
+  
+  var partitioned_data = response_partitions.map(function(range) {
+    range = ee.List(range);
+    return inputsCollection.filter(ee.Filter.rangeContains(response_band, range.getNumber(0), range.getNumber(1)));
+  });
+  
+  var trimmed_partitions = partitioned_data.map(function(partition) {
+    partition = ee.FeatureCollection(partition);
+    var feature_trimming_bounds = selected_features.map(function(feature) {
+      return ee.List([feature]).cat(partition.reduceColumns(ee.Reducer.percentile([5, 95]), [feature]).values(["p5", "p95"]));
+    });
+    var trimming = function(current_feature, collection) {
+      current_feature = ee.List(current_feature);
+      collection = ee.FeatureCollection(collection);
+      return collection.filter(ee.Filter.rangeContains(current_feature.getString(0), current_feature.getNumber(1), current_feature.getNumber(2)));
+    };
+    return feature_trimming_bounds.iterate(trimming, partition);
+  });
+  
+  var trimmed_data = ee.FeatureCollection(trimmed_partitions).flatten();
+  
+  return trimmed_data;
+};
+var trimmedCollection = trim_data(inputImage, select_features, "LAI", 50000, 10);
+Export.table.toDrive(trimmedCollection, 'image_samples', 'Colab Notebooks', 'image_samples', 'CSV', select_features.add("LAI"));
+
+
+
+
+var nnet = ee.FeatureCollection("users/hemitshah/nnet5");
+var nnet_inputs = nnet.filter(ee.Filter.eq("layer_num", 0)).first();
+var num_inputs = nnet_inputs.getNumber("num_nodes");
+
+var selected_features = nnet_inputs.getString("activation").split(",");
+
+nnet = nnet.filterBounds(ee.Geometry.Point([0,0]));
+var layer_list = nnet.sort("layer_num").toList(nnet.size());
+
+var parse_layer = function(feature) {
+  feature = ee.Feature(feature);
+  var prev_layer_size = feature.getNumber("prev_layer_size");
+  var num_nodes = feature.getNumber("num_nodes");
+  var node_size = prev_layer_size.subtract(1);
+  var activation = feature.getString("activation");
+  
+  var node_collection = ee.ImageCollection(ee.List.sequence(1, num_nodes).map(function(node) {
+    node = ee.Number(node).toInt();
+    return ee.ImageCollection(ee.List.sequence(node, node.add(node_size.multiply(num_nodes)), num_nodes)
+                    .map(function(index) {
+                      index = ee.Number(index).toInt();
+                      return ee.Image(feature.getNumber(index));
+                    })).toBands().set({"bias": 
+                      feature.getNumber(node.add(prev_layer_size.multiply(num_nodes)))
+                    });
+  }));
+  
+  return ee.List([node_collection, activation]);
+};
+
+var neural_net = layer_list.map(parse_layer);
+// print(ee.List(neural_net.get(0)).get(0));
+// print(ee.List(neural_net.get(0)).get(1));
+// print(ee.List(neural_net.get(1)).get(0));
+// print(ee.List(neural_net.get(1)).get(1));
+// print(ee.List(neural_net.get(2)).get(0));
+// print(ee.List(neural_net.get(2)).get(1));
+// print(ee.List(neural_net.get(3)).get(0));
+// print(ee.List(neural_net.get(3)).get(1));
+// print(ee.List(neural_net.get(4)).get(0));
+// print(ee.List(neural_net.get(4)).get(1));
+
+var linear = function(x) {
+  return ee.Image(x);
+};
+var elu = function(x) {
+  x = ee.Image(x);
+  return ee.ImageCollection([x.mask(x.gte(0)), x.mask(x.lt(0)).exp().subtract(1)]).mosaic();
+};
+var softplus = function(x) {
+  x = ee.Image(x);
+  return x.exp().add(1).log();
+};
+var softsign = function(x) {
+  x = ee.Image(x);
+  return x.divide(x.abs().add(1));
+};
+var relu = function(x) {
+  x = ee.Image(x);
+  return x.max(0.0);
+};
+var tanh = function(x) {
+  x = ee.Image(x);
+  return x.multiply(2).exp().subtract(1).divide(x.multiply(2).exp().add(1));
+};
+var sigmoid = function(x) {
+  return x.exp().pow(-1).add(1).pow(-1);
+};
+
+
+var apply_nnet = function(layer, input) {
+  layer = ee.List(layer);
+  input = ee.Image(input);
+  
+  var layer_nodes = ee.ImageCollection(layer.get(0));
+  var activation = layer.getString(1);
+
+  var node_outputs = layer_nodes.map(function(node) {
+    node = ee.Image(node);
+    var result =  input.multiply(node).reduce(ee.Reducer.sum()).add(node.getNumber("bias"));
+    return ee.Algorithms.If(activation.compareTo("linear"), softsign(result), result);
+  }).toBands();
+  
+  return node_outputs;
+};
+
+
+var validation_data = inputImage.select("LAI");
+var nnet_inputs = scaledImage.select(selected_features);
+// var layer1out = apply_nnet(neural_net.get(0), nnet_inputs);
+// var layer2out = apply_nnet(neural_net.get(1), layer1out);
+// var layer3out = apply_nnet(neural_net.get(2), layer2out);
+// var layer4out = apply_nnet(neural_net.get(3), layer3out);
+// var layer5out = apply_nnet(neural_net.get(4), layer4out);
+
+// Map.addLayer(layer1out);
+// Map.addLayer(layer2out);
+// Map.addLayer(layer3out);
+// Map.addLayer(layer4out);
+// Map.addLayer(layer5out);
+
+var prediction_data = ee.Image(neural_net.iterate(apply_nnet, nnet_inputs)).rename("NNET");
+
+var inputsCollection = ee.FeatureCollection("users/hemitshah/image_data_samples").select(selected_features.add("LAI"));
+var ee_regressor = ee.Classifier.randomForest({
+  numberOfTrees: 100,
+  variablesPerSplit: 0,
+  minLeafPopulation: 3,
+  bagFraction: 0.1,
+  outOfBagMode: false,
+  seed: 0
+}).setOutputMode("REGRESSION")
+  .train({
+    features: inputsCollection,
+    classProperty: "LAI",
+    inputProperties: selected_features
+  });
+
+var ee_prediction = nnet_inputs.addBands(validation_data).classify(ee_regressor, "RANDOM_FOREST");
+
+Map.addLayer(validation_data);
+Map.addLayer(prediction_data);
+Map.addLayer(ee_prediction);
+
+var nnet_rmse = prediction_data.subtract(validation_data).pow(2).reduceRegion(ee.Reducer.mean(), null, null, null, null, true, 10000000, 1).values().getNumber(0).pow(0.5);
+var rf_rmse = ee_prediction.subtract(validation_data).pow(2).reduceRegion(ee.Reducer.mean(), null, null, null, null, true, 10000000, 1).values()  .getNumber(0).pow(0.5);
+
+print("NEURAL NET RMSE: ", nnet_rmse);
+print("RANDOM FOREST RMSE: ", rf_rmse);
