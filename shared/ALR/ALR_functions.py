@@ -58,19 +58,38 @@ def format_image(image, image_bands, response_band, VI_definition):
     VIimageCollection = ee.ImageCollection(VI_definition.map(lambda expr: image.expression(expr)))
     VIimage = VIimageCollection.toBands().regexpRename("[0-9]+_", "")
     
-    # Reorder the bands in the image so the response band is the last band in the image
+    # Reorder the bands in the image so the response band is the first band in the image
     feature_bands = image_bands.remove(response_band)
-    
-    return image.select(feature_bands).addBands(VIimage).addBands(image.select(response_band))
+    return ee.Image(image.select(response_band).addBands(VIimage).addBands(image.select(feature_bands)))
 
 
 # The following function takes an image and retrieves the total number of pixels in the image as an integer
+'''
 def get_num_pixels(image):
     image_dimensions = ee.List(image.getInfo()["bands"][28]["dimensions"])
         # 28 is the index of the last band using the inputs defined above (12 input bands plus 17 VIs = 29 total bands)
     image_height = image_dimensions.getNumber(0)
     image_width = image_dimensions.getNumber(1)
     image_pixels = image_height.multiply(image_width)
+    return image_pixels
+'''
+
+def get_num_pixels(image):
+    
+    # get image height
+    def get_height(image):
+        height = image.getInfo()["bands"][0]["dimensions"][0]
+        return height
+    
+    # get image width
+    def get_width(image):
+        width = image.getInfo()["bands"][0]["dimensions"][1]
+        return width
+    
+    image_height = get_height(image)
+    image_width = get_width(image)
+    image_pixels = image_height*image_width
+    
     return image_pixels
 
 
