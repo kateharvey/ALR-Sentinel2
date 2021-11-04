@@ -3,39 +3,6 @@ import tensorflow as tf
 import math
 
 
-# ---------------
-# Math functions:
-# ---------------
-
-def elu(x):
-    if x>=0:
-        return x
-    else:
-        return (math.exp(x)-1)
-
-def softplus(x):
-    return math.log(math.exp(x)+1)
-
-def softsign(x):
-    return x/(abs(x)+1)
-
-def relu(x):
-    return max(x, 0.0)
-
-def tanh(x):
-    return (math.exp(2*x)-1)/(math.exp(2*x)+1)
-
-def sigmoid(x):
-    return 1/(1+math.exp(-x))
-
-
-# ------------------------------------------------
-# Functions for client-side implementation of ALR:
-# ------------------------------------------------
-# The following function takes an image, a list of the names to rename the bands to, a string which is the name of the band
-# containing the response variable in the image, and the list of strings defining vegetation indices to add to the image.
-# It returns an image which contains all of the original bands in the image renamed and all of the VIs defined earlier
-# with the response band being the last band defined in the image
 
 def format_image(image, image_bands, response_band, VI_definition):
     image = ee.Image(image)
@@ -46,16 +13,16 @@ def format_image(image, image_bands, response_band, VI_definition):
     # image_bands specifices a list of the names of the bands used in defining the expressions for VIs in VI_definition
     image = image.rename(image_bands).toDouble()
     
-    # Generate an ImageCollection from a list of expressions defining a set of VIs using the bands available in the image
-    VIimageCollection = ee.ImageCollection(VI_definition.map(lambda expr: image.expression(expr)))
-    VIimage = VIimageCollection.toBands().regexpRename("[0-9]+_", "")
+    # Generate an imageCollection from a list of expressions defining a set of Vegetation Indices using the bands available in the image
+    VIimageCollection = ee.ImageCollection(VI_definition.map(lambda expr: image.expression(ee.String(expr))))
+    VIimage = VIimageCollection.toBands().regexpRename('[0-9]+_', '')
     
-    # Reorder the bands in the image so the response band is the first band in the image
+    # Reordering the bands in the image so the response band is the last band in the image
     feature_bands = image_bands.remove(response_band)
-    return ee.Image(image.select(response_band).addBands(VIimage).addBands(image.select(feature_bands)))
+    
+    return image.select(feature_bands).addBands(VIimage).addBands(image.select(response_band))
 
 
-# The following function takes an image and retrieves the total number of pixels in the image as an integer
 
 def get_num_pixels(image):
     
@@ -76,16 +43,13 @@ def get_num_pixels(image):
     return image_pixels
 
 
-# The following takes an image and the name of the band containing the response variable in the image
-# It returns an image with the response band centred to a mean 0, and the other bands in the image standardized
-# to a mean 0 and standard deviation 1. This preprocessing is necessary for the LARs algorithm
 
 def scale_image(image, response_band):
     image = ee.Image(image)
     response_band = ee.String(response_band)
     image_pixels = ee.Number(get_num_pixels(image))
     
-    # Set up lists containing the input/feature bands in the image
+    # Setting up lists containing the input/feature bands in the image
     bandList = image.bandNames()
     featureList = bandList.remove(response_band)
     num_bands = bandList.length()
@@ -101,32 +65,21 @@ def scale_image(image, response_band):
     defaultCrs = image.select(response_band).projection().crs()
     image = image.setDefaultProjection(crs=defaultCrs, scale=defaultScale)
     
-    # Center all of the bands in the image for LARs
-    # We will centre the sampled data later as well as reduceRegion() is not precise enough
-    meanImage = image.subtract(image.reduceRegion(reducer=ee.Reducer.mean(), \
-                                scale=defaultScale, bestEffort=True, maxPixels=max_pixels).toImage(bandList))
+    # Initial centering all of the input bands, added VIs, and response with the input image
+    meanImage = image.subtract(image.reduceRegion(reducer=ee.Reducer.mean(), scale=defaultScale, \
+                                                  bestEffort=True, maxPixels=max_pixels).toImage(bandList))
     
-    # Separate the image into features (X) and response (y) as we need to standardize the input features
+    # Separating the image into features (X) and response (y) for processing with LARs
     X = meanImage.select(featureList)
     y = meanImage.select(response_band)
     
-    # Standardize the input features
+    # Standardizing the input features
     X = X.divide(X.reduceRegion(reducer=ee.Reducer.stdDev(), bestEffort=True, maxPixels=max_pixels).toImage(featureList))
     
     return X.addBands(y)
 
 
 
-# -----------------------
-# EE LARS implementation:
-# -----------------------
-# The following function implements the LARs algorithm fully as described in (et al. 2002)
-# It takes an image, the name of the band containing the response variable in the image, the number of non-zero
-# coefficients requested for the LARs algorithm to select the best features to predict the response in the image
-# Additionally the function requires the number of samples (pixels) from the image that the user wishes to process. 
-# These inputs are necessary as Earth Engine provides a limited amount of RAM (2GB) and processing time on their VMs,
-# so the user may need to adjust how many pixels they wish to process in the image in case the function leads to a 
-# "User memory limit exceeded error" or "Computation timed out error"
 
 def ee_LARS(input_image, input_bandNames, response_bandName, num_nonzero_coefficients, num_samples):
     image = ee.Image(input_image)
@@ -298,16 +251,11 @@ def ee_LARS(input_image, input_bandNames, response_bandName, num_nonzero_coeffic
 
 
 
-
-# -------------------
-# Trim data function:
-# -------------------
-# The following trims input data according to an algorithm in which the response band is partitioned into n equally sized
-# partitions, and each of the features selected by LARs are trimmed individually down to keep only the 5-95 percentile data
-# We are not doing any preprocessing with the data, so the raw data is exported from Earth Engine.
-# The function takes an image, a list of strings with the selected feature bands in the image, the name of the response
-# band in this image, the number of samples/pixels the user wants, and the number of parititions to trim within
-
+# The following function trims input data according to an algorithm in which the response band is partitioned into n equally sized
+# partitions, and in each of the n partitions, for the features selected by LARs, they are each trimmed individually down to only the
+# 5-95 percentile of the data. We are not doing any preprocessing with the data, so the raw data is exported from Earth Engine
+# The function takes an image, a list of strings with the selected feature bands in the image, the string that is the name of the response
+# band in this image, the number of samples/pixels the user wants to take from the image, and the number of parititions to trim within
 def trim_data(image, selected_features, response_band, num_samples, num_partitions):
     image = ee.Image(image)
     selected_features = ee.List(selected_features)
@@ -319,37 +267,41 @@ def trim_data(image, selected_features, response_band, num_samples, num_partitio
     # dictionary that will be generated from the percentile reducer used later on
     percentiles = ee.List.sequence(0, 100, ee.Number(100).divide(num_partitions))
     percentile_names = percentiles.map(lambda num: ee.Number(num).round().toInt().format("p%s"))
-    
-    # Randomly sample pixels in the input image into a FeatureCollection containing only selected features and response
+
+    # Randomly sample the pixels in the input image into a feature collection containing only the selected features and the response
     image_pixels = ee.Number(get_num_pixels(image))
     inputsCollection = image.select(selected_features.add(response_band)).sample(numPixels=num_samples.min(image_pixels))
-    
+
     # Find the values at the percentile bounds using the percentile reducer over the feature collection
-    response_percentiles = inputsCollection.reduceColumns(ee.Reducer.percentile(percentiles=percentiles, \
-                                        outputNames=percentile_names, maxRaw=inputsCollection.size()), [response_band])
+    response_percentiles = inputsCollection.reduceColumns \
+                            (ee.Reducer.percentile(percentiles=percentiles, outputNames=percentile_names,
+                                                   maxRaw=inputsCollection.size()),[response_band])
     
     # Create a list of percentile bounds for each partition
-    response_partitions = response_percentiles.values(percentile_names.remove('p100'))\
-                                .zip(response_percentiles.values(percentile_names.remove('p0')))
+    response_partitions = response_percentiles.values(percentile_names.remove('p100')).zip\
+                                    (response_percentiles.values(percentile_names.remove('p0')))
     
-    # Use the following mapped over the response_partitions list to partition the data by the requested number of partitions
     def partition_data(partition_range):
         partition_range = ee.List(partition_range)
-        return inputsCollection.filter(ee.Filter \
-                            .rangeContains(response_band, partition_range.getNumber(0), partition_range.getNumber(1)))
+        return inputsCollection.filter(ee.Filter.rangeContains(response_band,
+                                                        partition_range.getNumber(0), partition_range.getNumber(1)))
     
     partitioned_data = response_partitions.map(partition_data)
-    
+
     # The following function now trims the data in each partition individually for each feature to its 5-95 percentile only
     def trim_partitions(partition):
         partition = ee.FeatureCollection(partition)
-        feature_trimming_bounds = selected_features.map(lambda feature: ee.List([feature]) \
-                     .cat(partition.reduceColumns(ee.Reducer.percentile([5, 95]), [feature]).values(['p5','p95'])))
+        feature_trimming_bounds = selected_features\
+            .map(lambda feature: ee.List([feature])\
+                 .cat(partition.reduceColumns(ee.Reducer.percentile([5, 95]), [feature]).values(['p5','p95'])))
+        
         def trimmer(current_feature, collection):
             current_feature = ee.List(current_feature)
             collection = ee.FeatureCollection(collection)
-            return collection.filter(ee.Filter.rangeContains( \
-                        current_feature.getString(0), current_feature.getNumber(1), current_feature.getNumber(2)))
+            return collection.filter(ee.Filter.rangeContains(current_feature.getString(0),
+                                                             current_feature.getNumber(1),
+                                                             current_feature.getNumber(2)))
+        
         return feature_trimming_bounds.iterate(trimmer, partition)
     
     # Retrieve the trimmed data partitions and flatten the paritions into a single trimmed feature collection
@@ -360,75 +312,67 @@ def trim_data(image, selected_features, response_band, num_samples, num_partitio
 
 
 
-
-
-# ------------------
-# Network functions:
-# ------------------
-
-def apply_nnet(inputs, keras_model):
-    activation_functions = {
-        "elu": elu,
-        "softplus": softplus,
-        "softsign": softsign,
-        "relu": relu,
-        "tanh": tanh,
-        "sigmoid": sigmoid}
+def parse_layer(feature):
+    feature = ee.Feature(feature)
+    prev_layer_size = feature.getNumber("prev_layer_size")
+    num_nodes = feature.getNumber("num_nodes")
+    node_size = prev_layer_size.subtract(1)
+    activation = feature.getString("activation")
     
-    for layer in keras_model.layers:
-        layer_weights = layer.get_weights()
-        node_weights = layer_weights[0]
-        bias = layer_weights[1]
-        
-        inputs = inputs.dot(node_weights)+bias
-        
-        activation_function = layer.get_config()["activation"]
-        if(activation_function != "linear"):
-            activation_function = activation_functions[activation_function]
-            inputs = activation_function(inputs)
-    return inputs
-
-
-# The following function exports the keras model in a way that can be parsed into a FeatureCollection in Earth Engine and applied to images manually
-
-def export_nnet(keras_model, X):
-    nnet_data = []
-    headers = []
-    prev_layer_size = len(X.keys())
-    layer_num = 0
+    node_collection = ee.ImageCollection(ee.List.sequence(1, num_nodes)\
+                        .map(lambda node: ee.ImageCollection(ee.List.sequence(ee.Number(node).toInt(), ee.Number(node)\
+                                    .toInt().add(node_size.multiply(num_nodes)), num_nodes)\
+                        .map(lambda index: ee.Image(feature.getNumber(ee.Number(index).toInt())))).toBands()\
+                        .set({"bias": feature.getNumber(ee.Number(node).toInt().add(prev_layer_size.multiply(num_nodes)))})))
     
-    for layer in keras_model.layers:
-        layer_info = layer.get_config()
-        num_nodes = layer_info["units"]
-        activation_function = layer_info["activation"]
-        layer_weights = layer.get_weights()[0]
-        layer_bias = layer.get_weights()[1]
-        headers = list(set(headers) | set([x for x in range((prev_layer_size+1)*num_nodes)]))
-        layer_data = [0, 0, layer_num, prev_layer_size, num_nodes, activation_function] \
-                            + layer_weights.flatten().tolist() + layer_bias.tolist()
-        nnet_data.append(layer_data)
-        
-        prev_layer_size = num_nodes
-        layer_num += 1
-        
-    nnet_data.insert(0, ["latitude", "longitude", "layer_num", "prev_layer_size", "num_nodes", "activation"]+headers)
-    return nnet_data
+    return ee.List([node_collection, activation])
 
 
 
-def make_nets(X, y):
-    LAI_model = tf.keras.models.Sequential([
-        tf.keras.layers.Dense(5, input_shape=[len(X.keys())]),
-        tf.keras.layers.Dense(4, activation="softsign"),
-        tf.keras.layers.Dense(3, activation="softsign"),
-        tf.keras.layers.Dense(2, activation="softsign"),
-        tf.keras.layers.Dense(1)
-    ])
+def apply_nnet(layer, net_input):
+    layer = ee.List(layer)
+    net_input = ee.Image(net_input)
+    
+    layer_nodes = ee.ImageCollection(layer.get(0))
+    activation = layer.getString(1)
+    
+    node_outputs = layer_nodes.map(lambda node: ee.Algorithms.If(activation.compareTo("linear"),
+                        softsign(net_input.multiply(node).reduce(ee.Reducer.sum()).add(node.getNumber("bias"))),
+        net_input.multiply(ee.Image(node)).reduce(ee.Reducer.sum()).add(ee.Image(node).getNumber("bias")))).toBands()
 
-    # Compiling the model to minimize the mean squared error loss function and use the NADAM optimizer
-    LAI_model.compile(optimizer=tf.keras.optimizers.Nadam(), loss='mse', metrics=['mse', 'mae'])
+    return node_outputs
 
-    # Fitting the model to our trimmed data
-    LAI_model.fit(x=X.to_numpy(), y=y.to_numpy(), epochs=100)
 
-    return LAI_model
+
+# ---------------
+# MATH FUNCTIONS:
+# ---------------
+
+def linear(x):
+    return ee.Image(x)
+
+def elu(x):
+    x = ee.Image(x)
+    return ee.ImageCollection([x.mask(x.gte(0)), x.mask(x.lt(0)).exp().subtract(1)]).mosaic()
+
+def softplus(x):
+    x = ee.Image(x)
+    return x.exp().add(1).log()
+
+def softsign(x):
+    x = ee.Image(x)
+    return x.divide(x.abs().add(1))
+
+def relu(x):
+    x = ee.Image(x)
+    return x.max(0.0)
+
+def tanh(x):
+    x = ee.Image(x)
+    return x.multiply(2).exp().subtract(1).divide(x.multiply(2).exp().add(1))
+
+def sigmoid(x):
+    return x.exp().pow(-1).add(1).pow(-1)
+
+
+
