@@ -1,5 +1,4 @@
 import ee
-import geetools
 import folium ; from folium import plugins
 import time
 import numpy as np
@@ -39,8 +38,10 @@ def task_wait_loop(ee_task, wait_interval):
 # ----------------
 
 # create a folium map object
-def displayImage(image, minVal, maxVal):
-    my_map = folium.Map(location=[45.5, -75], zoom_start=8, height=500)
+def displayImage(image, minVal, maxVal, mapBounds):
+    center_long = mapBounds.getInfo()['coordinates'][0][0][0]
+    center_lat = mapBounds.getInfo()['coordinates'][0][0][1]
+    my_map = folium.Map(location=[center_lat, center_long], zoom_start=8, height=500)
     vis_params = {
       'min': minVal,
       'max': maxVal}
@@ -108,9 +109,10 @@ def add_ee_layer(self, ee_object, vis_params, name):
 folium.Map.add_ee_layer = add_ee_layer
 
 
-# ----------------------------
+
+# -----------------
 # Export functions:
-# ----------------------------
+# -----------------
 
 def export_jpeg(fig_name, outputName):
     fig = fig_name
@@ -163,3 +165,12 @@ def export_collection_to_drive(collection, num_images: int=0, image_names: list=
         task_list.append(export_task)
     
     return task_list
+
+
+def save_pkl(export_collection):
+    
+    for i in range(export_collection.size().getInfo()):
+        export_image = export_collection.toList(export_collection.size().getInfo()).get(i)
+        
+        with open('export_image_'+str(i)+'.pkl', 'wb') as file:
+            pickle.dump(export_image, file)
