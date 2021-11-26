@@ -28,6 +28,35 @@ def tanh(x):
 def sigmoid(x):
     return 1/(1+math.exp(-x))
 
+'''
+def linear(x):
+    return ee.Image(x)
+
+def elu(x):
+    # x = ee.Image(x)
+    return ee.ImageCollection([x.mask(x.gte(0)), x.mask(x.lt(0)).exp().subtract(1)]).mosaic()
+
+def softplus(x):
+    # x = ee.Image(x)
+    return x.exp().add(1).log()
+
+def softsign(x):
+    # x = ee.Image(x)
+    return x.divide(x.abs().add(1))
+
+def relu(x):
+    # x = ee.Image(x)
+    return x.max(0.0)
+
+def tanh(x):
+    # x = ee.Image(x)
+    return x.multiply(2).exp().subtract(1).divide(x.multiply(2).exp().add(1))
+
+def sigmoid(x):
+    return x.exp().pow(-1).add(1).pow(-1)
+'''
+
+
 
 # ------------------------------------------------
 # Functions for client-side implementation of ALR:
@@ -270,8 +299,8 @@ def ee_LARS(input_image, input_bandNames, response_bandName, num_nonzero_coeffic
     # variables that the user wishes to select as predictors for the response)
     iterations = ee.List.sequence(1, m.subtract(1).min(num_nonzero_coefficients))
     penultimate_outputs = iterations.iterate(LARs_regression, initial_inputs)
-    final_outputs = ee.Dictionary(ee.Algorithms\
-                    .If(num_nonzero_coefficients.gte(m), LARs_final_iteration(m, penultimate_outputs), penultimate_outputs))
+    final_outputs = ee.Dictionary(ee.Algorithms.If(num_nonzero_coefficients.gte(m), \
+                            LARs_final_iteration(m, penultimate_outputs), penultimate_outputs))
     
     final_prediction = final_outputs.getArray('prediction')
 

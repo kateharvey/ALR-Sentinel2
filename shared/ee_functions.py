@@ -165,12 +165,3 @@ def export_collection_to_drive(collection, num_images: int=0, image_names: list=
         task_list.append(export_task)
     
     return task_list
-
-
-def save_pkl(export_collection):
-    
-    for i in range(export_collection.size().getInfo()):
-        export_image = export_collection.toList(export_collection.size().getInfo()).get(i)
-        
-        with open('export_image_'+str(i)+'.pkl', 'wb') as file:
-            pickle.dump(export_image, file)
