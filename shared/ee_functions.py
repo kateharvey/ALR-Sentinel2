@@ -41,7 +41,7 @@ def task_wait_loop(ee_task, wait_interval):
 def displayImage(image, minVal, maxVal, mapBounds):
     center_long = mapBounds.getInfo()['coordinates'][0][0][0]
     center_lat = mapBounds.getInfo()['coordinates'][0][0][1]
-    my_map = folium.Map(location=[center_lat, center_long], zoom_start=8, height=500)
+    my_map = folium.Map(location=[center_lat, center_long], zoom_start=8, height=700)
     vis_params = {
       'min': minVal,
       'max': maxVal}
