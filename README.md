@@ -2,9 +2,9 @@
 
 Earth Engine Image Collection with original image and random forest classifications: https://code.earthengine.google.com/?asset=users/kateharvey/Sentinel2_test_sites
 
-
-
-
+\
+\
+\
 Details on Active Learning Regularization using SL2P algorithm: https://www.sciencedirect.com/science/article/pii/S0034425720306143
 See LEAF-Toolbox: https://github.com/rfernand387/LEAF-Toolbox
 
