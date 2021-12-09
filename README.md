@@ -1,6 +1,7 @@
 # ALR-Sentinel2
 
-Earth Engine Image Collection with SL2P10 and random forest classifications: https://code.earthengine.google.com/?asset=projects/kateharvey/assets/Sentinel2
+Earth Engine Image Collection with SL2P10 10 m products: https://code.earthengine.google.com/?asset=projects/kateharvey/assets/Sentinel2
+Earth Engine Image Collection with random forest classifications: https://code.earthengine.google.com/?asset=projects/kateharvey/assets/random_forest
 
 \
 \
