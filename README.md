@@ -1,11 +1,5 @@
 # ALR-Sentinel2
 
-Earth Engine Image Collection with SL2P10 10 m products: https://code.earthengine.google.com/?asset=projects/kateharvey/assets/Sentinel2 \
-Earth Engine Image Collection with random forest classifications: https://code.earthengine.google.com/?asset=projects/kateharvey/assets/random_forest
-
-\
-\
-\
 Details on Active Learning Regularization using SL2P algorithm: https://www.sciencedirect.com/science/article/pii/S0034425720306143
 See LEAF-Toolbox: https://github.com/rfernand387/LEAF-Toolbox
 
