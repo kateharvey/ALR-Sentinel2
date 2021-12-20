@@ -23,7 +23,6 @@ Note: This is an exact copy of LEAF-ToolBox-SL2P for image by image products as 
 \>\>conda install -c conda-forge scipy -y \
 \>\>conda install -c conda-forge tensorflow -y
 
-**Then as follows to run the script:**\
-\>\>Anaconda \
+**Then as follows to run the script in terminal window:**\
 \>\>conda activate leaftoolbox \
 \>\>jupyter lab
